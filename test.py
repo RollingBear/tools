@@ -22,9 +22,3 @@ __author__ = 'RollingBear'
 #
 # libc.strchr.argtypes = [c_char_p, c_char]
 # print('4->', libc.strchr('abcdefghij', 'd'))
-
-
-from sympy import *
-from math import radians, cos, sin, asin, sqrt
-
-print(float(pi))

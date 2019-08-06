@@ -4,6 +4,8 @@
 
 __author__ = 'RollingBear'
 
+import math
+
 from sympy import *
 from math import radians, cos, sin, asin, sqrt, degrees
 
@@ -20,7 +22,9 @@ class relativePosition():
         '''
 
         # 地球半径
-        self.R = 6371 * 1000
+        self.R = 6372795.477598
+        self.Ea = 6378137 # 赤道半径
+        self.Eb = 6356725 # 极半径
 
         self.postLongitude = postLongitude
         self.postLatitude = postLatitude
@@ -35,8 +39,14 @@ class relativePosition():
         :return:目标位置的元祖(目标位置经度, 目标位置纬度)
         '''
 
-        resultLongitude = self.postLongitude + (180 * distance * sin(radians(angle)) / (self.R * pi))
-        resultLatitude = self.postLatitude + (180 * distance * cos(radians(angle)) / (self.R * pi))
+        dx = distance * sin(angle * math.pi / 180.0)
+        dy = distance * cos(angle * math.pi / 180.0)
+
+        ec = self.Eb + (self.Ea - self.Eb) * (90.0 - self.postLatitude) / 90.0
+        ed = ec * cos(self.postLatitude * math.pi / 180.0)
+
+        resultLongitude = (dx / ed + self.postLongitude * math.pi / 180.0) * 180.0 / math.pi
+        resultLatitude = (dy / ec + self.postLatitude *math.pi / 180.0) * 180.0 / math.pi
 
         return (resultLongitude, resultLatitude)
 
@@ -50,14 +60,19 @@ class relativePosition():
         :return: 距离
         '''
 
-        longitude1, latitude1, longitude2, latitude2 = map(radians,
-                                                           [float(longitude1), float(latitude1), float(longitude2),
-                                                            float(latitude2)])
-        dlon = longitude2 - longitude1
-        dlat = latitude2 - latitude1
-        a = sin(dlat / 2) ** 2 + cos(latitude1) * cos(latitude2) * sin(dlon / 2) ** 2
-        distance = 2 * asin(sqrt(a)) * self.R
-        distance = round(distance, 3)
+        flatten = (self.Ea - self.Eb) / self.Ea
+        longitude1, latitude1, longitude2, latitude2 = map(radians, [longitude1, latitude1, longitude2, latitude2])
+        pA = atan(self.Eb / self.Ea * tan(latitude1))
+        pB = atan(self.Eb / self.Ea * tan(latitude2))
+
+        x = acos(sin(pA) * sin(pB) + cos(pA) * cos(pB) * cos(longitude1 - longitude2))
+
+        c1 = (sin(x) - x) * (sin(pA) + sin(pB)) ** 2 / cos(x / 2) ** 2
+        c2 = (sin(x) + x) * (sin(pA) - sin(pB)) ** 2 / sin(x / 2) ** 2
+
+        dr = flatten / 8 * (c1 - c2)
+        distance = self.Ea * (x + dr)
+
         return distance
 
     def getAngle(self, longitude1, latitude1, longitude2, latitude2):
@@ -87,25 +102,51 @@ class relativePosition():
         获取目标相对于探照灯的距离和方位角
         :param distance: 目标和观测点的距离
         :param angle: 目标相对于观测点的方位角
-        :return: 元祖(目标和探照灯的距离, 目标相对于探照灯的方位角)
+        :return: 字典
         '''
 
         shipPosition = self.getCoordinate(distance, angle)
 
-        distanceShipLight = self.getDistance(self.lightLongitude, self.lightLatitude, shipPosition[0], shipPosition[1])
+        distanceResult = self.getDistance(self.lightLongitude, self.lightLatitude, shipPosition[0], shipPosition[1])
 
-        angleShipLight = self.getAngle(self.lightLongitude, self.lightLatitude, shipPosition[0], shipPosition[1])
+        angleResult = self.getAngle(self.lightLongitude, self.lightLatitude, shipPosition[0], shipPosition[1])
 
-        return (distanceShipLight, angleShipLight)
+        return {'distance': distanceResult,
+                'angle': angleResult}
 
 
 if __name__ == '__main__':
-    postLon = 0
-    postLat = 0
+    postLon = 116.322201
+    postLat = 39.895349
 
-    lightLon = 0.001254513
-    lightLat = 0.000000023
+    lightLon = 116.378506
+    lightLat = 39.866369
 
-    relativePositioning = relativePosition(postLon, postLat, lightLon, lightLat)
+    relative1 = relativePosition(postLon, postLat, lightLon, lightLat)
 
-    print(relativePositioning.getResult(1000, 30))
+    print(relative1.getCoordinate(30400, 45))
+    print(relative1.getResult(30400, 45))
+
+    relative2 = relativePosition(116.57426789092189, 40.088739059087956, postLon, postLat)
+
+    print(relative2.getCoordinate(29820.4563410530, 213.940890532890705))
+    print(relative2.getResult(29820.4563410530, 213.940890532890705))
+
+    postLon = 117.986298
+    postLat = 38.400469
+
+    lightLon = 121.120234
+    lightLat = 38.806942
+
+    pointLon = 121.837864
+    pointLat = 40.865465
+
+    relative3 = relativePosition(postLon, postLat, lightLon, lightLat)
+
+    print(relative3.getDistance(postLon, postLat, pointLon, pointLat))
+    print(relative3.getAngle(postLon, postLat, pointLon, pointLat))
+
+    relative4 = relativePosition(postLon, postLat, lightLon, lightLat)
+
+    print(relative4.getCoordinate(429145, 49.056))
+    print(relative4.getResult(429145, 49.056))
